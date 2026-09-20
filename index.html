@@ -176,8 +176,9 @@
 <body>
 
 <div id="configBox" class="config-box" hidden>
-  <strong>Falta configurar la conexión.</strong> Pegá acá la URL de tu Google Apps Script (la que termina en <span class="num">/exec</span>):
+  <strong>Falta configurar la conexión.</strong> Pegá la URL de tu Google Apps Script (la que termina en <span class="num">/exec</span>) y el secreto compartido que definiste en el script:
   <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+  <input type="text" id="apiSecretInput" placeholder="Secreto compartido (SHARED_SECRET del script)">
   <button class="primary" id="saveApiUrl" style="margin-top:8px;">Guardar</button>
 </div>
 
@@ -219,6 +220,7 @@
 
   var NICK_KEY = "respawn-tracker-nick";
   var API_KEY = "respawn-tracker-api-url";
+  var SECRET_KEY = "respawn-tracker-api-secret";
   var POLL_MS = 6000;
 
   var nickInput = document.getElementById("nickInput");
@@ -229,15 +231,23 @@
   var apiUrlInput = document.getElementById("apiUrlInput");
 
   var API_URL = "";
-  try { API_URL = localStorage.getItem(API_KEY) || ""; } catch(e) {}
+  var API_SECRET = "";
+  try {
+    API_URL = localStorage.getItem(API_KEY) || "";
+    API_SECRET = localStorage.getItem(SECRET_KEY) || "";
+  } catch(e) {}
 
-  if (!API_URL) {
+  if (!API_URL || !API_SECRET) {
     configBox.hidden = false;
   }
   document.getElementById("saveApiUrl").addEventListener("click", function(){
     var v = apiUrlInput.value.trim();
-    if (!v) return;
-    try { localStorage.setItem(API_KEY, v); } catch(e) {}
+    var s = document.getElementById("apiSecretInput").value.trim();
+    if (!v || !s) return;
+    try {
+      localStorage.setItem(API_KEY, v);
+      localStorage.setItem(SECRET_KEY, s);
+    } catch(e) {}
     location.reload();
   });
 
@@ -475,34 +485,36 @@
     });
   });
 
-  function apiCall(payload){
-    if (!API_URL) { dbStatusEl.textContent = "Falta configurar la URL de Google Apps Script arriba."; return Promise.resolve(); }
-    return fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS
-      body: JSON.stringify(payload)
-    })
+  function handleResponse(promise){
+    return promise
       .then(function(r){ return r.json(); })
       .then(function(data){
-        if (data && data.bosses) { bosses = data.bosses; render(); }
-        dbStatusEl.textContent = "Conectado — se actualiza solo cada " + (POLL_MS/1000) + "s.";
+        if (data && data.ok && data.bosses) {
+          bosses = data.bosses;
+          render();
+          dbStatusEl.textContent = "Conectado — se actualiza solo cada " + (POLL_MS/1000) + "s.";
+        } else {
+          dbStatusEl.textContent = "El servidor devolvió un error" + (data && data.error ? " (" + data.error + ")" : "") + ". Reintentá.";
+        }
       })
       .catch(function(){
         dbStatusEl.textContent = "No se pudo conectar con Google Sheets. Revisá la URL configurada.";
       });
   }
 
+  function apiCall(payload){
+    if (!API_URL) { dbStatusEl.textContent = "Falta configurar la URL de Google Apps Script arriba."; return Promise.resolve(); }
+    payload.secret = API_SECRET;
+    return handleResponse(fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS
+      body: JSON.stringify(payload)
+    }));
+  }
+
   function fetchAll(){
     if (!API_URL) return;
-    fetch(API_URL)
-      .then(function(r){ return r.json(); })
-      .then(function(data){
-        if (data && data.bosses) { bosses = data.bosses; render(); }
-        dbStatusEl.textContent = "Conectado — se actualiza solo cada " + (POLL_MS/1000) + "s.";
-      })
-      .catch(function(){
-        dbStatusEl.textContent = "No se pudo conectar con Google Sheets. Revisá la URL configurada.";
-      });
+    handleResponse(fetch(API_URL));
   }
 
   setInterval(tick, 1000);

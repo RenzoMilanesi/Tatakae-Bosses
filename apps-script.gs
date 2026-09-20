@@ -4,18 +4,30 @@
 var SHEET_NAME = "Bosses";
 var HEADERS = ["id", "name", "minHours", "maxHours", "lastDeathAt", "lastBy", "notes"];
 
+// Cambiá esto por tu propio secreto antes de compartir la URL con tus
+// amigos. Se manda en cada escritura (agregar/editar/borrar) para que
+// alguien que encuentre la URL sin este valor no pueda tocar tus datos.
+var SHARED_SECRET = "CAMBIAR_ESTO";
+
 function getSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow(HEADERS);
+    sheet.getRange("E:E").setNumberFormat("@"); // lastDeathAt como texto plano, nunca fecha
   } else if (sheet.getLastColumn() < HEADERS.length) {
     // hoja creada con una versión anterior (sin la columna "notes")
     sheet.getRange(1, sheet.getLastColumn() + 1, 1, HEADERS.length - sheet.getLastColumn())
       .setValues([HEADERS.slice(sheet.getLastColumn())]);
   }
   return sheet;
+}
+
+function isoOrNull_(v) {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString();
+  return String(v);
 }
 
 function readAll_() {
@@ -30,7 +42,7 @@ function readAll_() {
         name: String(r[1] || ""),
         minHours: Number(r[2]) || 6,
         maxHours: Number(r[3]) || 7,
-        lastDeathAt: r[4] ? String(r[4]) : null,
+        lastDeathAt: isoOrNull_(r[4]),
         lastBy: r[5] ? String(r[5]) : null,
         notes: r[6] ? String(r[6]) : ""
       };
@@ -55,6 +67,10 @@ function doPost(e) {
     body = JSON.parse(e.postData.contents);
   } catch (err) {
     return jsonOut_({ ok: false, error: "bad_json" });
+  }
+
+  if (body.secret !== SHARED_SECRET) {
+    return jsonOut_({ ok: false, error: "unauthorized" });
   }
 
   var sheet = getSheet_();
