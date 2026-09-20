@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reloj de Respawns</title>
+<style>
+  :root{
+    --bg:#f3ede2;
+    --surface:#fffdf8;
+    --surface-2:#ece3d2;
+    --ink:#241d14;
+    --muted:#7a6f5c;
+    --line:#ddd0b8;
+    --accent:#b5471b;
+    --accent-ink:#fff8ef;
+    --up:#2f6f5e;
+    --up-bg:#e3ede9;
+    --wait:#8a6d1f;
+    --wait-bg:#f2e9d3;
+    --danger:#a3321f;
+    --shadow: 0 1px 2px rgba(36,29,20,.06), 0 8px 24px -12px rgba(36,29,20,.25);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#171310;
+      --surface:#211b15;
+      --surface-2:#2a231b;
+      --ink:#f1e9da;
+      --muted:#a89a80;
+      --line:#3a3126;
+      --accent:#e07a45;
+      --accent-ink:#1c1108;
+      --up:#7bc9ac;
+      --up-bg:#1c2b25;
+      --wait:#e0bd5f;
+      --wait-bg:#2c2513;
+      --danger:#e2694f;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+      color-scheme: dark;
+    }
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  *{ box-sizing:border-box; }
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    padding-inline:16px;
+    padding-block:28px 60px;
+    max-width:920px;
+    margin:0 auto;
+  }
+  h1,h2{ font-family:'Cinzel','Georgia',serif; text-wrap:balance; margin:0; }
+  .num{ font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric: tabular-nums; }
+
+  header.top{
+    display:flex; justify-content:space-between; align-items:flex-end; gap:16px;
+    flex-wrap:wrap; margin-bottom:28px;
+  }
+  header.top h1{ font-size:1.7rem; color:var(--accent); letter-spacing:.02em; }
+  header.top p{ margin:.3rem 0 0; color:var(--muted); font-size:.85rem; }
+
+  .nick-box{
+    display:flex; align-items:center; gap:8px; font-size:.8rem; color:var(--muted);
+  }
+  .nick-box input{
+    font:inherit; font-weight:600; color:var(--ink); background:var(--surface-2);
+    border:1px solid var(--line); border-radius:8px; padding:6px 10px; width:110px;
+  }
+
+  section{ margin-bottom:32px; }
+  section > h2{ font-size:.75rem; text-transform:uppercase; letter-spacing:.12em;
+    color:var(--muted); margin-bottom:12px; }
+
+  .next-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;
+  }
+  .next-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding:16px; box-shadow:var(--shadow); position:relative; overflow:hidden;
+  }
+  .next-card .rank{
+    position:absolute; top:10px; right:14px; font-family:'Cinzel',serif; font-size:1.6rem;
+    color:var(--line); font-weight:700;
+  }
+  .next-card .name{ font-weight:700; font-size:1.05rem; margin-bottom:6px; padding-right:30px; }
+  .next-card .status{
+    display:inline-block; font-size:.7rem; font-weight:700; text-transform:uppercase;
+    letter-spacing:.06em; padding:3px 9px; border-radius:999px; margin-bottom:10px;
+  }
+  .status.up{ background:var(--up-bg); color:var(--up); }
+  .status.wait{ background:var(--wait-bg); color:var(--wait); }
+  .next-card .countdown{ font-size:1.4rem; font-weight:700; }
+  .next-card .window{ color:var(--muted); font-size:.78rem; margin-top:4px; }
+  .empty-hint{ color:var(--muted); font-size:.85rem; font-style:italic; }
+
+  .boss-list{ display:flex; flex-direction:column; gap:10px; }
+  .boss-row{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:14px 16px; box-shadow:var(--shadow);
+    display:grid; grid-template-columns:1fr auto; gap:10px 16px; align-items:center;
+  }
+  .boss-row .main{ display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .boss-row .name-line{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .boss-row .name-line input.bname{
+    font:inherit; font-weight:700; font-size:1rem; color:var(--ink); background:transparent;
+    border:1px solid transparent; border-radius:6px; padding:2px 6px; min-width:80px; max-width:220px;
+  }
+  .boss-row .name-line input.bname:hover, .boss-row .name-line input.bname:focus{
+    border-color:var(--line); background:var(--surface-2);
+  }
+  .boss-row .meta{ color:var(--muted); font-size:.78rem; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .boss-row .meta input.hrs{
+    font:inherit; font-family:'JetBrains Mono',monospace; width:32px; text-align:center;
+    border:1px solid var(--line); border-radius:5px; padding:1px 3px; background:var(--surface-2); color:var(--ink);
+  }
+  .boss-row .window-line{ font-size:.85rem; }
+  .boss-row .window-line .status{
+    display:inline-block; font-size:.65rem; font-weight:700; text-transform:uppercase;
+    letter-spacing:.05em; padding:2px 8px; border-radius:999px; margin-right:6px;
+  }
+  .boss-row .actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  button, .btn{
+    font:inherit; font-weight:600; font-size:.8rem; border:none; border-radius:8px;
+    padding:8px 12px; cursor:pointer; background:var(--surface-2); color:var(--ink);
+  }
+  button.primary{ background:var(--accent); color:var(--accent-ink); }
+  button.ghost{ background:transparent; border:1px solid var(--line); }
+  button.icon{ padding:8px 10px; }
+  button:disabled{ opacity:.5; cursor:default; }
+  input[type="datetime-local"]{
+    font:inherit; font-size:.78rem; border:1px solid var(--line); border-radius:8px;
+    padding:6px 8px; background:var(--surface-2); color:var(--ink);
+  }
+
+  .add-form{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:var(--surface);
+    border:1px dashed var(--line); border-radius:12px; padding:12px 14px;
+  }
+  .add-form input[type="text"]{
+    font:inherit; border:1px solid var(--line); border-radius:8px; padding:8px 10px;
+    background:var(--surface-2); color:var(--ink); flex:1; min-width:140px;
+  }
+  .add-form label{ font-size:.75rem; color:var(--muted); display:flex; align-items:center; gap:4px; }
+  .add-form input[type="number"]{
+    width:48px; font:inherit; font-family:'JetBrains Mono',monospace; text-align:center;
+    border:1px solid var(--line); border-radius:6px; padding:5px; background:var(--surface); color:var(--ink);
+  }
+
+  .foot-note{ color:var(--muted); font-size:.75rem; text-align:center; margin-top:20px; }
+  a{ color:var(--accent); }
+  .config-box{
+    background:var(--wait-bg); border:1px solid var(--line); border-radius:12px;
+    padding:16px; margin-bottom:24px; font-size:.85rem;
+  }
+  .config-box input{
+    font:inherit; width:100%; margin-top:8px; padding:8px 10px; border-radius:8px;
+    border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  }
+</style>
+</head>
+<body>
+
+<div id="configBox" class="config-box" hidden>
+  <strong>Falta configurar la conexión.</strong> Pegá acá la URL de tu Google Apps Script (la que termina en <span class="num">/exec</span>):
+  <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+  <button class="primary" id="saveApiUrl" style="margin-top:8px;">Guardar</button>
+</div>
+
+<header class="top">
+  <div>
+    <h1>Reloj de Respawns</h1>
+    <p>Anotá cuándo cae un boss y calculamos la ventana de reaparición (6–7 hs).</p>
+  </div>
+  <div class="nick-box">
+    Tu nick <input id="nickInput" type="text" placeholder="ej: Renzo" maxlength="18">
+  </div>
+</header>
+
+<section>
+  <h2>Próximos 3</h2>
+  <div class="next-grid" id="nextGrid"></div>
+</section>
+
+<section>
+  <h2>Todos los bosses</h2>
+  <div class="boss-list" id="bossList"></div>
+</section>
+
+<section>
+  <h2>Agregar boss</h2>
+  <div class="add-form">
+    <input type="text" id="newName" placeholder="Nombre del boss">
+    <label>Mín <input type="number" id="newMin" value="6" min="0" step="0.5"> hs</label>
+    <label>Máx <input type="number" id="newMax" value="7" min="0" step="0.5"> hs</label>
+    <button class="primary" id="addBtn">+ Agregar</button>
+  </div>
+</section>
+
+<p class="foot-note" id="dbStatus">Conectando…</p>
+
+<script>
+(function(){
+  "use strict";
+
+  var NICK_KEY = "respawn-tracker-nick";
+  var API_KEY = "respawn-tracker-api-url";
+  var POLL_MS = 6000;
+
+  var nickInput = document.getElementById("nickInput");
+  var dbStatusEl = document.getElementById("dbStatus");
+  var nextGrid = document.getElementById("nextGrid");
+  var bossList = document.getElementById("bossList");
+  var configBox = document.getElementById("configBox");
+  var apiUrlInput = document.getElementById("apiUrlInput");
+
+  var API_URL = "";
+  try { API_URL = localStorage.getItem(API_KEY) || ""; } catch(e) {}
+
+  if (!API_URL) {
+    configBox.hidden = false;
+  }
+  document.getElementById("saveApiUrl").addEventListener("click", function(){
+    var v = apiUrlInput.value.trim();
+    if (!v) return;
+    try { localStorage.setItem(API_KEY, v); } catch(e) {}
+    location.reload();
+  });
+
+  try {
+    var savedNick = localStorage.getItem(NICK_KEY);
+    if (savedNick) nickInput.value = savedNick;
+  } catch(e) {}
+  nickInput.addEventListener("input", function(){
+    try { localStorage.setItem(NICK_KEY, nickInput.value.trim()); } catch(e) {}
+  });
+  function getNick(){
+    var v = (nickInput.value || "").trim();
+    return v || "Anónimo";
+  }
+
+  var bosses = []; // {id, name, minHours, maxHours, lastDeathAt, lastBy}
+
+  function fmtTime(d){
+    return d.toLocaleString(undefined, {
+      day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"
+    });
+  }
+  function fmtDuration(ms){
+    var neg = ms < 0;
+    ms = Math.abs(ms);
+    var totalMin = Math.floor(ms/60000);
+    var h = Math.floor(totalMin/60), m = totalMin % 60;
+    return (neg?"-":"") + h + "h " + String(m).padStart(2,"0") + "m";
+  }
+
+  function windowFor(boss){
+    if (!boss.lastDeathAt) return null;
+    var death = new Date(boss.lastDeathAt);
+    var start = new Date(death.getTime() + boss.minHours*3600000);
+    var end = new Date(death.getTime() + boss.maxHours*3600000);
+    return { start: start, end: end };
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function render(){
+    var now = new Date();
+    var withWindow = [];
+    var withoutData = [];
+    bosses.forEach(function(b){
+      var w = windowFor(b);
+      if (w) withWindow.push({ boss: b, w: w });
+      else withoutData.push(b);
+    });
+    withWindow.sort(function(a,b){ return a.w.start - b.w.start; });
+
+    // --- Próximos 3 ---
+    nextGrid.innerHTML = "";
+    if (withWindow.length === 0) {
+      nextGrid.innerHTML = '<p class="empty-hint">Todavía nadie anotó una muerte. Cuando anotes una, va a aparecer acá.</p>';
+    } else {
+      withWindow.slice(0,3).forEach(function(item, i){
+        var isUp = now >= item.w.start;
+        var card = document.createElement("div");
+        card.className = "next-card";
+        var countdown = isUp
+          ? '<span class="num">' + fmtDuration(now - item.w.start) + '</span> en ventana'
+          : '<span class="num">' + fmtDuration(item.w.start - now) + '</span>';
+        card.innerHTML =
+          '<div class="rank">' + (i+1) + '</div>' +
+          '<div class="name">' + escapeHtml(item.boss.name) + '</div>' +
+          '<div class="status ' + (isUp ? "up" : "wait") + '">' + (isUp ? "Puede salir" : "En espera") + '</div>' +
+          '<div class="countdown">' + countdown + '</div>' +
+          '<div class="window">' + fmtTime(item.w.start) + ' – ' + fmtTime(item.w.end) + '</div>';
+        nextGrid.appendChild(card);
+      });
+    }
+
+    // --- Lista completa ---
+    var all = withWindow.concat(withoutData.map(function(b){ return { boss:b, w:null }; }));
+    all.sort(function(a,b){
+      if (a.w && b.w) return a.w.start - b.w.start;
+      if (a.w) return -1;
+      if (b.w) return 1;
+      return a.boss.name.localeCompare(b.boss.name);
+    });
+
+    bossList.innerHTML = "";
+    all.forEach(function(item){
+      var b = item.boss, w = item.w;
+      var row = document.createElement("div");
+      row.className = "boss-row";
+
+      var windowHtml;
+      if (w) {
+        var isUp = now >= w.start;
+        windowHtml =
+          '<span class="status ' + (isUp?"up":"wait") + '">' + (isUp?"Puede salir":"En espera") + '</span>' +
+          fmtTime(w.start) + ' – ' + fmtTime(w.end) +
+          ' · <span class="num">' + (isUp ? "hace " + fmtDuration(now-w.start) : fmtDuration(w.start-now) + " para abrir") + '</span>';
+      } else {
+        windowHtml = '<span class="empty-hint">Sin muerte registrada</span>';
+      }
+
+      var lastInfo = b.lastDeathAt
+        ? "Murió: " + fmtTime(new Date(b.lastDeathAt)) + (b.lastBy ? " · anotó " + escapeHtml(b.lastBy) : "")
+        : "";
+
+      row.innerHTML =
+        '<div class="main">' +
+          '<div class="name-line"><input class="bname" data-id="' + b.id + '" value="' + escapeHtml(b.name) + '"></div>' +
+          '<div class="meta">' +
+            'Respawn: <input class="hrs" data-field="minHours" data-id="' + b.id + '" type="number" step="0.5" min="0" value="' + b.minHours + '"> a ' +
+            '<input class="hrs" data-field="maxHours" data-id="' + b.id + '" type="number" step="0.5" min="0" value="' + b.maxHours + '"> hs' +
+            (lastInfo ? " · " + lastInfo : "") +
+          '</div>' +
+          '<div class="window-line">' + windowHtml + '</div>' +
+        '</div>' +
+        '<div class="actions">' +
+          '<input type="datetime-local" class="deathpicker" data-id="' + b.id + '">' +
+          '<button class="ghost setdeath" data-id="' + b.id + '">Cargar hora</button>' +
+          '<button class="primary died-now" data-id="' + b.id + '">Murió ahora</button>' +
+          '<button class="icon ghost del" data-id="' + b.id + '" title="Eliminar boss">✕</button>' +
+        '</div>';
+
+      bossList.appendChild(row);
+    });
+
+    wireRowEvents();
+  }
+
+  function wireRowEvents(){
+    bossList.querySelectorAll(".died-now").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        recordDeath(btn.dataset.id, new Date());
+      });
+    });
+    bossList.querySelectorAll(".setdeath").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var input = bossList.querySelector('.deathpicker[data-id="' + btn.dataset.id + '"]');
+        if (!input.value) return;
+        recordDeath(btn.dataset.id, new Date(input.value));
+      });
+    });
+    bossList.querySelectorAll(".del").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        if (!confirm("¿Eliminar este boss de la lista?")) return;
+        apiCall({ action: "delete", id: btn.dataset.id });
+      });
+    });
+    bossList.querySelectorAll(".bname").forEach(function(input){
+      input.addEventListener("change", function(){
+        var v = input.value.trim();
+        if (!v) return;
+        apiCall({ action: "update", id: input.dataset.id, name: v });
+      });
+    });
+    bossList.querySelectorAll(".hrs").forEach(function(input){
+      input.addEventListener("change", function(){
+        var v = parseFloat(input.value);
+        if (isNaN(v) || v < 0) return;
+        var payload = { action: "update", id: input.dataset.id };
+        payload[input.dataset.field] = v;
+        apiCall(payload);
+      });
+    });
+  }
+
+  function recordDeath(id, date){
+    apiCall({ action: "update", id: id, lastDeathAt: date.toISOString(), lastBy: getNick() });
+  }
+
+  document.getElementById("addBtn").addEventListener("click", function(){
+    var nameEl = document.getElementById("newName");
+    var name = nameEl.value.trim();
+    if (!name) { nameEl.focus(); return; }
+    var minH = parseFloat(document.getElementById("newMin").value) || 6;
+    var maxH = parseFloat(document.getElementById("newMax").value) || 7;
+    apiCall({ action: "add", name: name, minHours: minH, maxHours: maxH }).then(function(){
+      nameEl.value = "";
+    });
+  });
+
+  function apiCall(payload){
+    if (!API_URL) { dbStatusEl.textContent = "Falta configurar la URL de Google Apps Script arriba."; return Promise.resolve(); }
+    return fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS
+      body: JSON.stringify(payload)
+    })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data && data.bosses) { bosses = data.bosses; render(); }
+        dbStatusEl.textContent = "Conectado — se actualiza solo cada " + (POLL_MS/1000) + "s.";
+      })
+      .catch(function(){
+        dbStatusEl.textContent = "No se pudo conectar con Google Sheets. Revisá la URL configurada.";
+      });
+  }
+
+  function fetchAll(){
+    if (!API_URL) return;
+    fetch(API_URL)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data && data.bosses) { bosses = data.bosses; render(); }
+        dbStatusEl.textContent = "Conectado — se actualiza solo cada " + (POLL_MS/1000) + "s.";
+      })
+      .catch(function(){
+        dbStatusEl.textContent = "No se pudo conectar con Google Sheets. Revisá la URL configurada.";
+      });
+  }
+
+  setInterval(render, 1000);
+  if (API_URL) {
+    fetchAll();
+    setInterval(fetchAll, POLL_MS);
+  } else {
+    render();
+  }
+})();
+</script>
+</body>
+</html>
