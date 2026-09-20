@@ -76,12 +76,21 @@
     color:var(--muted); margin-bottom:12px; }
 
   .next-grid{
-    display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;
+    display:flex; flex-direction:column; gap:10px;
   }
   .next-card{
     background:var(--surface); border:1px solid var(--line); border-radius:14px;
     padding:16px; box-shadow:var(--shadow); position:relative; overflow:hidden;
+    transition:opacity .2s, transform .2s, border-color .2s;
   }
+  .next-card.is-up{ border-color:var(--up); }
+  .next-card.rank-1{ padding:20px 20px; }
+  .next-card.rank-1 .name{ font-size:1.3rem; }
+  .next-card.rank-1 .countdown{ font-size:1.8rem; }
+  .next-card.rank-2{ opacity:.92; }
+  .next-card.rank-3{ opacity:.84; transform:scale(.98); }
+  .next-card.rank-4{ opacity:.76; transform:scale(.96); }
+  .next-card.rank-5{ opacity:.68; transform:scale(.94); }
   .next-card .rank{
     position:absolute; top:10px; right:14px; font-family:'Cinzel',serif; font-size:1.6rem;
     color:var(--line); font-weight:700;
@@ -96,12 +105,25 @@
   .next-card .countdown{ font-size:1.4rem; font-weight:700; }
   .next-card .window{ color:var(--muted); font-size:.78rem; margin-top:4px; }
   .empty-hint{ color:var(--muted); font-size:.85rem; font-style:italic; }
+  .franja{ margin-top:4px; font-size:.78rem; }
+  .franja-label{
+    display:block; text-transform:uppercase; font-size:.65rem; letter-spacing:.06em;
+    color:var(--muted); margin-bottom:2px;
+  }
+  .franja-time{ display:block; font-weight:600; color:var(--ink); }
+  .countdown-inline{ margin-left:6px; }
 
   .boss-list{ display:flex; flex-direction:column; gap:10px; }
   .boss-row{
     background:var(--surface); border:1px solid var(--line); border-radius:12px;
-    padding:14px 16px; box-shadow:var(--shadow);
+    padding:14px 44px 14px 16px; box-shadow:var(--shadow); position:relative;
     display:grid; grid-template-columns:1fr auto; gap:10px 16px; align-items:center;
+    transition:border-color .2s;
+  }
+  .boss-row.is-up{ border-color:var(--up); }
+  .boss-row.is-up .died-now{ background:var(--up); color:var(--accent-ink); }
+  .boss-row .del-corner{
+    position:absolute; top:10px; right:10px;
   }
   .boss-row .main{ display:flex; flex-direction:column; gap:4px; min-width:0; }
   .boss-row .name-line{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -192,7 +214,7 @@
 </header>
 
 <section>
-  <h2>Próximos 3</h2>
+  <h2>Próximos 5</h2>
   <div class="next-grid" id="nextGrid"></div>
 </section>
 
@@ -254,11 +276,15 @@
   }
 
   var bosses = []; // {id, name, minHours, maxHours, lastDeathAt, lastBy, notes}
+  var openTimeInputs = new Set(); // ids con el input de "Cargar hora" desplegado
 
   function fmtTime(d){
     return d.toLocaleString(undefined, {
       day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"
     });
+  }
+  function fmtTimeOnly(d){
+    return d.toLocaleTimeString(undefined, { hour:"2-digit", minute:"2-digit" });
   }
   function fmtDuration(ms){
     var neg = ms < 0;
@@ -286,8 +312,12 @@
     if (!w) return '<span class="empty-hint">Sin muerte registrada</span>';
     var isUp = now >= w.start;
     return '<span class="status ' + (isUp?"up":"wait") + '">' + (isUp?"Puede salir":"En espera") + '</span>' +
-      fmtTime(w.start) + ' – ' + fmtTime(w.end) +
-      ' · <span class="num">' + (isUp ? "hace " + fmtDuration(now-w.start) : fmtDuration(w.start-now) + " para abrir") + '</span>';
+      '<span class="num countdown-inline">' + (isUp ? "hace " + fmtDuration(now-w.start) : fmtDuration(w.start-now) + " para abrir") + '</span>' +
+      '<div class="franja">' +
+        '<span class="franja-label">Franja de Respawn</span>' +
+        '<span class="num franja-time">' + fmtTimeOnly(w.start) + '</span>' +
+        '<span class="num franja-time">' + fmtTimeOnly(w.end) + '</span>' +
+      '</div>';
   }
 
   // Reconstruye la lista completa (nombres, inputs, botones). Se llama SOLO
@@ -309,10 +339,10 @@
     if (withWindow.length === 0) {
       nextGrid.innerHTML = '<p class="empty-hint">Todavía nadie anotó una muerte. Cuando anotes una, va a aparecer acá.</p>';
     } else {
-      withWindow.slice(0,3).forEach(function(item, i){
+      withWindow.slice(0,5).forEach(function(item, i){
         var isUp = now >= item.w.start;
         var card = document.createElement("div");
-        card.className = "next-card";
+        card.className = "next-card rank-" + (i+1) + (isUp ? " is-up" : "");
         card.dataset.id = item.boss.id;
         var countdown = isUp
           ? '<span class="num">' + fmtDuration(now - item.w.start) + '</span> en ventana'
@@ -323,7 +353,11 @@
           '<div class="name">' + escapeHtml(item.boss.name) + '</div>' +
           '<div class="status live-status ' + (isUp ? "up" : "wait") + '">' + (isUp ? "Puede salir" : "En espera") + '</div>' +
           '<div class="countdown live-countdown">' + countdown + '</div>' +
-          '<div class="window">' + fmtTime(item.w.start) + ' – ' + fmtTime(item.w.end) + '</div>' +
+          '<div class="window franja">' +
+            '<span class="franja-label">Franja de Respawn</span>' +
+            '<span class="num franja-time">' + fmtTimeOnly(item.w.start) + '</span>' +
+            '<span class="num franja-time">' + fmtTimeOnly(item.w.end) + '</span>' +
+          '</div>' +
           (item.boss.notes ? '<div class="obs-note">📝 ' + escapeHtml(item.boss.notes) + '</div>' : '');
         nextGrid.appendChild(card);
       });
@@ -341,14 +375,22 @@
     bossList.innerHTML = "";
     all.forEach(function(item){
       var b = item.boss, w = item.w;
+      var isUp = !!w && now >= w.start;
       var row = document.createElement("div");
-      row.className = "boss-row";
+      row.className = "boss-row" + (isUp ? " is-up" : "");
 
       var lastInfo = b.lastDeathAt
         ? "Murió: " + fmtTime(new Date(b.lastDeathAt)) + (b.lastBy ? " · anotó " + escapeHtml(b.lastBy) : "")
         : "";
 
+      var loadTimeHtml = openTimeInputs.has(b.id)
+        ? '<input type="time" class="deathpicker" data-id="' + b.id + '">' +
+          '<button class="ghost setdeath-confirm" data-id="' + b.id + '">OK</button>' +
+          '<button class="ghost setdeath-cancel" data-id="' + b.id + '">Cancelar</button>'
+        : '<button class="ghost setdeath-toggle" data-id="' + b.id + '">Cargar hora</button>';
+
       row.innerHTML =
+        '<button class="icon ghost del-corner" data-id="' + b.id + '" title="Eliminar boss de la lista">✕</button>' +
         '<div class="main">' +
           '<div class="name-line"><input class="bname" data-id="' + b.id + '" value="' + escapeHtml(b.name) + '"></div>' +
           '<div class="meta">' +
@@ -360,11 +402,9 @@
           '<input class="notes" data-id="' + b.id + '" type="text" maxlength="140" placeholder="Observación (ej: enrabia en fase 2, requiere 3+)" value="' + escapeHtml(b.notes || "") + '">' +
         '</div>' +
         '<div class="actions">' +
-          '<input type="time" class="deathpicker" data-id="' + b.id + '">' +
-          '<button class="ghost setdeath" data-id="' + b.id + '">Cargar hora</button>' +
+          loadTimeHtml +
           '<button class="primary died-now" data-id="' + b.id + '">Murió ahora</button>' +
           (b.lastDeathAt ? '<button class="ghost undo-death" data-id="' + b.id + '" title="Quita el registro de muerte, no borra el boss">Quitar de próximos</button>' : '') +
-          '<button class="icon ghost del" data-id="' + b.id + '" title="Eliminar boss de la lista">✕ Boss</button>' +
         '</div>';
 
       bossList.appendChild(row);
@@ -390,11 +430,15 @@
       cdEl.innerHTML = isUp
         ? '<span class="num">' + fmtDuration(now - w.start) + '</span> en ventana'
         : '<span class="num">' + fmtDuration(w.start - now) + '</span>';
+      card.classList.toggle("is-up", isUp);
     });
     document.querySelectorAll(".window-line[data-id]").forEach(function(el){
       var boss = bosses.find(function(b){ return b.id === el.dataset.id; });
       if (!boss) return;
-      el.innerHTML = windowHtmlFor(windowFor(boss), now);
+      var w = windowFor(boss);
+      el.innerHTML = windowHtmlFor(w, now);
+      var row = el.closest(".boss-row");
+      if (row) row.classList.toggle("is-up", !!w && now >= w.start);
     });
   }
 
@@ -404,7 +448,19 @@
         recordDeath(btn.dataset.id, new Date());
       });
     });
-    bossList.querySelectorAll(".setdeath").forEach(function(btn){
+    bossList.querySelectorAll(".setdeath-toggle").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        openTimeInputs.add(btn.dataset.id);
+        render();
+      });
+    });
+    bossList.querySelectorAll(".setdeath-cancel").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        openTimeInputs.delete(btn.dataset.id);
+        render();
+      });
+    });
+    bossList.querySelectorAll(".setdeath-confirm").forEach(function(btn){
       btn.addEventListener("click", function(){
         var input = bossList.querySelector('.deathpicker[data-id="' + btn.dataset.id + '"]');
         if (!input.value) return;
@@ -412,6 +468,7 @@
         var d = new Date();
         d.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
         if (d.getTime() > Date.now()) d.setDate(d.getDate() - 1); // hora futura => fue ayer
+        openTimeInputs.delete(btn.dataset.id);
         recordDeath(btn.dataset.id, d);
       });
     });
@@ -420,7 +477,7 @@
         clearDeath(btn.dataset.id);
       });
     });
-    bossList.querySelectorAll(".del").forEach(function(btn){
+    bossList.querySelectorAll(".del-corner").forEach(function(btn){
       btn.addEventListener("click", function(){
         if (!confirm("¿Eliminar este boss de la lista? Se borra por completo, no solo su muerte.")) return;
         apiCall({ action: "delete", id: btn.dataset.id });
