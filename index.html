@@ -131,7 +131,7 @@
   button.ghost{ background:transparent; border:1px solid var(--line); }
   button.icon{ padding:8px 10px; }
   button:disabled{ opacity:.5; cursor:default; }
-  input[type="datetime-local"]{
+  input[type="time"]{
     font:inherit; font-size:.78rem; border:1px solid var(--line); border-radius:8px;
     padding:6px 8px; background:var(--surface-2); color:var(--ink);
   }
@@ -271,6 +271,17 @@
     });
   }
 
+  function windowHtmlFor(w, now){
+    if (!w) return '<span class="empty-hint">Sin muerte registrada</span>';
+    var isUp = now >= w.start;
+    return '<span class="status ' + (isUp?"up":"wait") + '">' + (isUp?"Puede salir":"En espera") + '</span>' +
+      fmtTime(w.start) + ' – ' + fmtTime(w.end) +
+      ' · <span class="num">' + (isUp ? "hace " + fmtDuration(now-w.start) : fmtDuration(w.start-now) + " para abrir") + '</span>';
+  }
+
+  // Reconstruye la lista completa (nombres, inputs, botones). Se llama SOLO
+  // cuando cambian los datos, nunca en el tick de cada segundo, para no
+  // pisar lo que el usuario esté tipeando en un input.
   function render(){
     var now = new Date();
     var withWindow = [];
@@ -291,14 +302,15 @@
         var isUp = now >= item.w.start;
         var card = document.createElement("div");
         card.className = "next-card";
+        card.dataset.id = item.boss.id;
         var countdown = isUp
           ? '<span class="num">' + fmtDuration(now - item.w.start) + '</span> en ventana'
           : '<span class="num">' + fmtDuration(item.w.start - now) + '</span>';
         card.innerHTML =
           '<div class="rank">' + (i+1) + '</div>' +
           '<div class="name">' + escapeHtml(item.boss.name) + '</div>' +
-          '<div class="status ' + (isUp ? "up" : "wait") + '">' + (isUp ? "Puede salir" : "En espera") + '</div>' +
-          '<div class="countdown">' + countdown + '</div>' +
+          '<div class="status live-status ' + (isUp ? "up" : "wait") + '">' + (isUp ? "Puede salir" : "En espera") + '</div>' +
+          '<div class="countdown live-countdown">' + countdown + '</div>' +
           '<div class="window">' + fmtTime(item.w.start) + ' – ' + fmtTime(item.w.end) + '</div>';
         nextGrid.appendChild(card);
       });
@@ -319,17 +331,6 @@
       var row = document.createElement("div");
       row.className = "boss-row";
 
-      var windowHtml;
-      if (w) {
-        var isUp = now >= w.start;
-        windowHtml =
-          '<span class="status ' + (isUp?"up":"wait") + '">' + (isUp?"Puede salir":"En espera") + '</span>' +
-          fmtTime(w.start) + ' – ' + fmtTime(w.end) +
-          ' · <span class="num">' + (isUp ? "hace " + fmtDuration(now-w.start) : fmtDuration(w.start-now) + " para abrir") + '</span>';
-      } else {
-        windowHtml = '<span class="empty-hint">Sin muerte registrada</span>';
-      }
-
       var lastInfo = b.lastDeathAt
         ? "Murió: " + fmtTime(new Date(b.lastDeathAt)) + (b.lastBy ? " · anotó " + escapeHtml(b.lastBy) : "")
         : "";
@@ -342,10 +343,10 @@
             '<input class="hrs" data-field="maxHours" data-id="' + b.id + '" type="number" step="0.5" min="0" value="' + b.maxHours + '"> hs' +
             (lastInfo ? " · " + lastInfo : "") +
           '</div>' +
-          '<div class="window-line">' + windowHtml + '</div>' +
+          '<div class="window-line" data-id="' + b.id + '">' + windowHtmlFor(w, now) + '</div>' +
         '</div>' +
         '<div class="actions">' +
-          '<input type="datetime-local" class="deathpicker" data-id="' + b.id + '">' +
+          '<input type="time" class="deathpicker" data-id="' + b.id + '">' +
           '<button class="ghost setdeath" data-id="' + b.id + '">Cargar hora</button>' +
           '<button class="primary died-now" data-id="' + b.id + '">Murió ahora</button>' +
           '<button class="icon ghost del" data-id="' + b.id + '" title="Eliminar boss">✕</button>' +
@@ -355,6 +356,31 @@
     });
 
     wireRowEvents();
+  }
+
+  // Corre cada segundo: solo actualiza los textos de countdown/ventana,
+  // nunca reconstruye los inputs, así no se pierde lo que estás tipeando.
+  function tick(){
+    var now = new Date();
+    document.querySelectorAll(".next-card").forEach(function(card){
+      var boss = bosses.find(function(b){ return b.id === card.dataset.id; });
+      if (!boss) return;
+      var w = windowFor(boss);
+      if (!w) return;
+      var isUp = now >= w.start;
+      var statusEl = card.querySelector(".live-status");
+      var cdEl = card.querySelector(".live-countdown");
+      statusEl.className = "status live-status " + (isUp ? "up" : "wait");
+      statusEl.textContent = isUp ? "Puede salir" : "En espera";
+      cdEl.innerHTML = isUp
+        ? '<span class="num">' + fmtDuration(now - w.start) + '</span> en ventana'
+        : '<span class="num">' + fmtDuration(w.start - now) + '</span>';
+    });
+    document.querySelectorAll(".window-line[data-id]").forEach(function(el){
+      var boss = bosses.find(function(b){ return b.id === el.dataset.id; });
+      if (!boss) return;
+      el.innerHTML = windowHtmlFor(windowFor(boss), now);
+    });
   }
 
   function wireRowEvents(){
@@ -367,7 +393,11 @@
       btn.addEventListener("click", function(){
         var input = bossList.querySelector('.deathpicker[data-id="' + btn.dataset.id + '"]');
         if (!input.value) return;
-        recordDeath(btn.dataset.id, new Date(input.value));
+        var parts = input.value.split(":"); // "HH:MM"
+        var d = new Date();
+        d.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
+        if (d.getTime() > Date.now()) d.setDate(d.getDate() - 1); // hora futura => fue ayer
+        recordDeath(btn.dataset.id, d);
       });
     });
     bossList.querySelectorAll(".del").forEach(function(btn){
@@ -439,7 +469,7 @@
       });
   }
 
-  setInterval(render, 1000);
+  setInterval(tick, 1000);
   if (API_URL) {
     fetchAll();
     setInterval(fetchAll, POLL_MS);
