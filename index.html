@@ -84,28 +84,33 @@
     transition:opacity .2s, transform .2s, border-color .2s;
   }
   .next-card.is-up{ border-color:var(--up); }
-  .next-card.rank-1{ padding:20px 20px; }
+  .next-card.rank-1{ padding:20px; }
   .next-card.rank-1 .name{ font-size:1.3rem; }
   .next-card.rank-1 .countdown{ font-size:1.8rem; }
   .next-card.rank-2{ opacity:.92; }
   .next-card.rank-3{ opacity:.84; transform:scale(.98); }
   .next-card.rank-4{ opacity:.76; transform:scale(.96); }
   .next-card.rank-5{ opacity:.68; transform:scale(.94); }
-  .next-card .rank{
-    position:absolute; top:10px; right:14px; font-family:'Cinzel',serif; font-size:1.6rem;
-    color:var(--line); font-weight:700;
+  .next-card .undo-death-card{
+    position:absolute; top:10px; right:10px;
   }
-  .next-card .name{ font-weight:700; font-size:1.05rem; margin-bottom:6px; padding-right:30px; }
+  .next-card .card-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding-right:34px; margin-bottom:10px;
+  }
+  .next-card .name{ font-weight:700; font-size:1.05rem; }
   .next-card .status{
     display:inline-block; font-size:.7rem; font-weight:700; text-transform:uppercase;
-    letter-spacing:.06em; padding:3px 9px; border-radius:999px; margin-bottom:10px;
+    letter-spacing:.06em; padding:3px 9px; border-radius:999px; flex-shrink:0;
   }
   .status.up{ background:var(--up-bg); color:var(--up); }
   .status.wait{ background:var(--wait-bg); color:var(--wait); }
-  .next-card .countdown{ font-size:1.4rem; font-weight:700; }
-  .next-card .window{ color:var(--muted); font-size:.78rem; margin-top:4px; }
+  .next-card .card-row{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  .next-card .countdown{ font-size:1.4rem; font-weight:700; text-align:right; }
   .empty-hint{ color:var(--muted); font-size:.85rem; font-style:italic; }
-  .franja{ margin-top:4px; font-size:.78rem; }
+  .franja{ font-size:.78rem; }
   .franja-label{
     display:block; text-transform:uppercase; font-size:.65rem; letter-spacing:.06em;
     color:var(--muted); margin-bottom:2px;
@@ -348,15 +353,18 @@
           ? '<span class="num">' + fmtDuration(now - item.w.start) + '</span> en ventana'
           : '<span class="num">' + fmtDuration(item.w.start - now) + '</span>';
         card.innerHTML =
-          '<div class="rank">' + (i+1) + '</div>' +
           '<button class="icon ghost undo-death-card" data-id="' + item.boss.id + '" title="Quitar de próximos (no borra el boss)">✕</button>' +
-          '<div class="name">' + escapeHtml(item.boss.name) + '</div>' +
-          '<div class="status live-status ' + (isUp ? "up" : "wait") + '">' + (isUp ? "Puede salir" : "En espera") + '</div>' +
-          '<div class="countdown live-countdown">' + countdown + '</div>' +
-          '<div class="window franja">' +
-            '<span class="franja-label">Franja de Respawn</span>' +
-            '<span class="num franja-time">' + fmtTimeOnly(item.w.start) + '</span>' +
-            '<span class="num franja-time">' + fmtTimeOnly(item.w.end) + '</span>' +
+          '<div class="card-head">' +
+            '<div class="name">' + escapeHtml(item.boss.name) + '</div>' +
+            '<div class="status live-status ' + (isUp ? "up" : "wait") + '">' + (isUp ? "Puede salir" : "En espera") + '</div>' +
+          '</div>' +
+          '<div class="card-row">' +
+            '<div class="window franja">' +
+              '<span class="franja-label">Franja de Respawn</span>' +
+              '<span class="num franja-time">' + fmtTimeOnly(item.w.start) + '</span>' +
+              '<span class="num franja-time">' + fmtTimeOnly(item.w.end) + '</span>' +
+            '</div>' +
+            '<div class="countdown live-countdown">' + countdown + '</div>' +
           '</div>' +
           (item.boss.notes ? '<div class="obs-note">📝 ' + escapeHtml(item.boss.notes) + '</div>' : '');
         nextGrid.appendChild(card);
