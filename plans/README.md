@@ -6,7 +6,7 @@ Auditoría `deep` sobre `index.html` + `apps-script.gs`. Commit base: `15fcb28`.
 |---|------|--------|------------|
 | 001 | Mostrar errores reales del backend en vez de "Conectado" | DONE | — |
 | 002 | Robustecer el guardado/lectura de `lastDeathAt` en Sheets | DONE | — |
-| 003 | Proteger las escrituras del Web App con un secreto compartido | DONE | — |
+| 003 | Proteger las escrituras del Web App con un secreto compartido | REVERTIDO (a pedido del usuario, lo consideró innecesario para esta anotación simple) | — |
 
 Hallazgo #4 (duplicación `apiCall`/`fetchAll`) no tenía plan propio, pero
 se resolvió como efecto colateral de implementar 001: ambas funciones ahora

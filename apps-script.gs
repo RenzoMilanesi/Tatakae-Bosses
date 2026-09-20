@@ -4,11 +4,6 @@
 var SHEET_NAME = "Bosses";
 var HEADERS = ["id", "name", "minHours", "maxHours", "lastDeathAt", "lastBy", "notes"];
 
-// Cambiá esto por tu propio secreto antes de compartir la URL con tus
-// amigos. Se manda en cada escritura (agregar/editar/borrar) para que
-// alguien que encuentre la URL sin este valor no pueda tocar tus datos.
-var SHARED_SECRET = "CAMBIAR_ESTO";
-
 function getSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME);
@@ -67,10 +62,6 @@ function doPost(e) {
     body = JSON.parse(e.postData.contents);
   } catch (err) {
     return jsonOut_({ ok: false, error: "bad_json" });
-  }
-
-  if (body.secret !== SHARED_SECRET) {
-    return jsonOut_({ ok: false, error: "unauthorized" });
   }
 
   var sheet = getSheet_();
