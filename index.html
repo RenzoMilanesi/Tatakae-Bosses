@@ -118,6 +118,17 @@
     border:1px solid var(--line); border-radius:5px; padding:1px 3px; background:var(--surface-2); color:var(--ink);
   }
   .boss-row .window-line{ font-size:.85rem; }
+  .boss-row input.notes{
+    font:inherit; font-size:.8rem; font-style:italic; color:var(--muted); background:transparent;
+    border:1px dashed transparent; border-radius:6px; padding:3px 6px; margin-top:2px; width:100%; max-width:420px;
+  }
+  .boss-row input.notes:hover, .boss-row input.notes:focus{
+    border-color:var(--line); background:var(--surface-2); font-style:normal;
+  }
+  .next-card .obs-note{
+    font-size:.72rem; color:var(--wait); background:var(--wait-bg); border-radius:8px;
+    padding:5px 8px; margin-top:8px; font-style:italic;
+  }
   .boss-row .window-line .status{
     display:inline-block; font-size:.65rem; font-weight:700; text-transform:uppercase;
     letter-spacing:.05em; padding:2px 8px; border-radius:999px; margin-right:6px;
@@ -242,7 +253,7 @@
     return v || "Anónimo";
   }
 
-  var bosses = []; // {id, name, minHours, maxHours, lastDeathAt, lastBy}
+  var bosses = []; // {id, name, minHours, maxHours, lastDeathAt, lastBy, notes}
 
   function fmtTime(d){
     return d.toLocaleString(undefined, {
@@ -308,10 +319,12 @@
           : '<span class="num">' + fmtDuration(item.w.start - now) + '</span>';
         card.innerHTML =
           '<div class="rank">' + (i+1) + '</div>' +
+          '<button class="icon ghost undo-death-card" data-id="' + item.boss.id + '" title="Quitar de próximos (no borra el boss)">✕</button>' +
           '<div class="name">' + escapeHtml(item.boss.name) + '</div>' +
           '<div class="status live-status ' + (isUp ? "up" : "wait") + '">' + (isUp ? "Puede salir" : "En espera") + '</div>' +
           '<div class="countdown live-countdown">' + countdown + '</div>' +
-          '<div class="window">' + fmtTime(item.w.start) + ' – ' + fmtTime(item.w.end) + '</div>';
+          '<div class="window">' + fmtTime(item.w.start) + ' – ' + fmtTime(item.w.end) + '</div>' +
+          (item.boss.notes ? '<div class="obs-note">📝 ' + escapeHtml(item.boss.notes) + '</div>' : '');
         nextGrid.appendChild(card);
       });
     }
@@ -344,12 +357,14 @@
             (lastInfo ? " · " + lastInfo : "") +
           '</div>' +
           '<div class="window-line" data-id="' + b.id + '">' + windowHtmlFor(w, now) + '</div>' +
+          '<input class="notes" data-id="' + b.id + '" type="text" maxlength="140" placeholder="Observación (ej: enrabia en fase 2, requiere 3+)" value="' + escapeHtml(b.notes || "") + '">' +
         '</div>' +
         '<div class="actions">' +
           '<input type="time" class="deathpicker" data-id="' + b.id + '">' +
           '<button class="ghost setdeath" data-id="' + b.id + '">Cargar hora</button>' +
           '<button class="primary died-now" data-id="' + b.id + '">Murió ahora</button>' +
-          '<button class="icon ghost del" data-id="' + b.id + '" title="Eliminar boss">✕</button>' +
+          (b.lastDeathAt ? '<button class="ghost undo-death" data-id="' + b.id + '" title="Quita el registro de muerte, no borra el boss">Quitar de próximos</button>' : '') +
+          '<button class="icon ghost del" data-id="' + b.id + '" title="Eliminar boss de la lista">✕ Boss</button>' +
         '</div>';
 
       bossList.appendChild(row);
@@ -400,9 +415,14 @@
         recordDeath(btn.dataset.id, d);
       });
     });
+    bossList.querySelectorAll(".undo-death").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        clearDeath(btn.dataset.id);
+      });
+    });
     bossList.querySelectorAll(".del").forEach(function(btn){
       btn.addEventListener("click", function(){
-        if (!confirm("¿Eliminar este boss de la lista?")) return;
+        if (!confirm("¿Eliminar este boss de la lista? Se borra por completo, no solo su muerte.")) return;
         apiCall({ action: "delete", id: btn.dataset.id });
       });
     });
@@ -411,6 +431,11 @@
         var v = input.value.trim();
         if (!v) return;
         apiCall({ action: "update", id: input.dataset.id, name: v });
+      });
+    });
+    bossList.querySelectorAll(".notes").forEach(function(input){
+      input.addEventListener("change", function(){
+        apiCall({ action: "update", id: input.dataset.id, notes: input.value.trim() });
       });
     });
     bossList.querySelectorAll(".hrs").forEach(function(input){
@@ -427,6 +452,17 @@
   function recordDeath(id, date){
     apiCall({ action: "update", id: id, lastDeathAt: date.toISOString(), lastBy: getNick() });
   }
+
+  function clearDeath(id){
+    apiCall({ action: "update", id: id, lastDeathAt: null, lastBy: null });
+  }
+
+  // Delegado: los botones ✕ de las cards de "Próximos 3" se recrean en
+  // cada render(), así que se escuchan una sola vez en el contenedor padre.
+  nextGrid.addEventListener("click", function(e){
+    var btn = e.target.closest(".undo-death-card");
+    if (btn) clearDeath(btn.dataset.id);
+  });
 
   document.getElementById("addBtn").addEventListener("click", function(){
     var nameEl = document.getElementById("newName");

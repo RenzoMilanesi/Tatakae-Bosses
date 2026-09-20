@@ -2,7 +2,7 @@
 // Crea automáticamente la hoja "Bosses" con los encabezados si no existe.
 
 var SHEET_NAME = "Bosses";
-var HEADERS = ["id", "name", "minHours", "maxHours", "lastDeathAt", "lastBy"];
+var HEADERS = ["id", "name", "minHours", "maxHours", "lastDeathAt", "lastBy", "notes"];
 
 function getSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -10,6 +10,10 @@ function getSheet_() {
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow(HEADERS);
+  } else if (sheet.getLastColumn() < HEADERS.length) {
+    // hoja creada con una versión anterior (sin la columna "notes")
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, HEADERS.length - sheet.getLastColumn())
+      .setValues([HEADERS.slice(sheet.getLastColumn())]);
   }
   return sheet;
 }
@@ -27,7 +31,8 @@ function readAll_() {
         minHours: Number(r[2]) || 6,
         maxHours: Number(r[3]) || 7,
         lastDeathAt: r[4] ? String(r[4]) : null,
-        lastBy: r[5] ? String(r[5]) : null
+        lastBy: r[5] ? String(r[5]) : null,
+        notes: r[6] ? String(r[6]) : ""
       };
     });
 }
@@ -63,7 +68,8 @@ function doPost(e) {
       Number(body.minHours) || 6,
       Number(body.maxHours) || 7,
       "",
-      ""
+      "",
+      body.notes || ""
     ]);
   } else if (action === "update") {
     var row = findRowIndexById_(sheet, body.id);
@@ -73,6 +79,7 @@ function doPost(e) {
       if (body.maxHours !== undefined) sheet.getRange(row, 4).setValue(Number(body.maxHours));
       if (body.lastDeathAt !== undefined) sheet.getRange(row, 5).setValue(body.lastDeathAt || "");
       if (body.lastBy !== undefined) sheet.getRange(row, 6).setValue(body.lastBy || "");
+      if (body.notes !== undefined) sheet.getRange(row, 7).setValue(body.notes || "");
     }
   } else if (action === "delete") {
     var rowDel = findRowIndexById_(sheet, body.id);
