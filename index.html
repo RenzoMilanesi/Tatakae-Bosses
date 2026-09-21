@@ -95,6 +95,9 @@
     display:flex; align-items:center; gap:4px 12px; flex-wrap:wrap; padding-right:34px;
   }
   .next-card .card-head .status{ margin-left:auto; }
+  .next-card .died-now-card{ padding:4px 10px; font-size:.75rem; }
+  .next-card.is-up .died-now-card{ background:var(--up); color:var(--accent-ink); }
+  .next-card.is-alive .died-now-card{ background:var(--alive); color:var(--surface); }
   .next-card .name{ font-weight:700; font-size:1.05rem; }
   .next-card .status{
     display:inline-block; font-size:.7rem; font-weight:700; text-transform:uppercase;
@@ -396,6 +399,7 @@
             '<div class="name">' + escapeHtml(b.name) + '</div>' +
             '<div class="status alive">Visto vivo</div>' +
             '<div class="countdown alive-countdown">hace ' + fmtDuration(now - new Date(b.aliveSeenAt)) + '</div>' +
+            '<button class="primary died-now-card" data-id="' + b.id + '">Murió ahora</button>' +
           '</div>' +
           (b.notes ? '<div class="obs-note">📝 ' + escapeHtml(b.notes) + '</div>' : '');
         nextGrid.appendChild(card);
@@ -412,6 +416,7 @@
             franjaHtml(item.w) +
             '<div class="status live-status up">Puede salir</div>' +
             '<div class="countdown live-countdown">' + countdown + '</div>' +
+            '<button class="primary died-now-card" data-id="' + item.boss.id + '">Murió ahora</button>' +
           '</div>' +
           (item.boss.notes ? '<div class="obs-note">📝 ' + escapeHtml(item.boss.notes) + '</div>' : '');
         nextGrid.appendChild(card);
@@ -617,7 +622,9 @@
   // Delegado: los botones ✕ de las cards de "Próximos 3" se recrean en
   // cada render(), así que se escuchan una sola vez en el contenedor padre.
   nextGrid.addEventListener("click", function(e){
-    var btn = e.target.closest(".undo-death-card");
+    var btn = e.target.closest(".died-now-card");
+    if (btn) { recordDeath(btn.dataset.id, new Date()); return; }
+    btn = e.target.closest(".undo-death-card");
     if (btn) { clearDeath(btn.dataset.id); return; }
     btn = e.target.closest(".undo-alive-card");
     if (btn) apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null });
