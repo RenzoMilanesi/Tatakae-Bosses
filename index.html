@@ -120,6 +120,7 @@
 
   .boss-columns{ display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; }
   @media (max-width:640px){ .boss-columns{ grid-template-columns:1fr; } }
+  .boss-col{ container-type:inline-size; }
   .boss-col h3{ font-size:.7rem; text-transform:uppercase; letter-spacing:.1em;
     color:var(--muted); margin:0 0 10px; }
   .boss-list{ display:flex; flex-direction:column; gap:10px; }
@@ -165,6 +166,10 @@
     letter-spacing:.05em; padding:2px 8px; border-radius:999px; margin-right:6px;
   }
   .boss-row .actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  @container (max-width:480px){
+    .boss-row{ grid-template-columns:1fr; }
+    .boss-row .actions{ justify-content:flex-start; }
+  }
   button, .btn{
     font:inherit; font-weight:600; font-size:.8rem; border:none; border-radius:8px;
     padding:8px 12px; cursor:pointer; background:var(--surface-2); color:var(--ink);
