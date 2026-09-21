@@ -2,7 +2,7 @@
 // Crea automáticamente la hoja "Bosses" con los encabezados si no existe.
 
 var SHEET_NAME = "Bosses";
-var HEADERS = ["id", "name", "minHours", "maxHours", "lastDeathAt", "lastBy", "notes"];
+var HEADERS = ["id", "name", "minHours", "maxHours", "lastDeathAt", "lastBy", "notes", "aliveSeenAt", "aliveSeenBy"];
 
 function getSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -11,6 +11,7 @@ function getSheet_() {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow(HEADERS);
     sheet.getRange("E:E").setNumberFormat("@"); // lastDeathAt como texto plano, nunca fecha
+    sheet.getRange("H:H").setNumberFormat("@"); // aliveSeenAt como texto plano, nunca fecha
   } else if (sheet.getLastColumn() < HEADERS.length) {
     // hoja creada con una versión anterior (sin la columna "notes")
     sheet.getRange(1, sheet.getLastColumn() + 1, 1, HEADERS.length - sheet.getLastColumn())
@@ -39,7 +40,9 @@ function readAll_() {
         maxHours: Number(r[3]) || 7,
         lastDeathAt: isoOrNull_(r[4]),
         lastBy: r[5] ? String(r[5]) : null,
-        notes: r[6] ? String(r[6]) : ""
+        notes: r[6] ? String(r[6]) : "",
+        aliveSeenAt: isoOrNull_(r[7]),
+        aliveSeenBy: r[8] ? String(r[8]) : null
       };
     });
 }
@@ -76,7 +79,9 @@ function doPost(e) {
       Number(body.maxHours) || 7,
       "",
       "",
-      body.notes || ""
+      body.notes || "",
+      "",
+      ""
     ]);
   } else if (action === "update") {
     var row = findRowIndexById_(sheet, body.id);
@@ -87,6 +92,8 @@ function doPost(e) {
       if (body.lastDeathAt !== undefined) sheet.getRange(row, 5).setValue(body.lastDeathAt || "");
       if (body.lastBy !== undefined) sheet.getRange(row, 6).setValue(body.lastBy || "");
       if (body.notes !== undefined) sheet.getRange(row, 7).setValue(body.notes || "");
+      if (body.aliveSeenAt !== undefined) sheet.getRange(row, 8).setValue(body.aliveSeenAt || "");
+      if (body.aliveSeenBy !== undefined) sheet.getRange(row, 9).setValue(body.aliveSeenBy || "");
     }
   } else if (action === "delete") {
     var rowDel = findRowIndexById_(sheet, body.id);

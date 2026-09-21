@@ -328,8 +328,14 @@
     });
   }
 
-  function windowHtmlFor(w, now){
-    if (!w) return '<span class="empty-hint">Sin muerte registrada</span>';
+  function windowHtmlFor(w, now, boss){
+    if (!w) {
+      if (boss && boss.aliveSeenAt) {
+        return '<span class="status up">Visto vivo</span>' +
+          '<span class="num countdown-inline">hace ' + fmtDuration(now - new Date(boss.aliveSeenAt)) + '</span>';
+      }
+      return '<span class="empty-hint">Sin muerte registrada</span>';
+    }
     var isUp = now >= w.start;
     return '<span class="status ' + (isUp?"up":"wait") + '">' + (isUp?"Puede salir":"En espera") + '</span>' +
       '<span class="num countdown-inline">' + (isUp ? "hace " + fmtDuration(now-w.start) : fmtDuration(w.start-now) + " para abrir") + '</span>' +
@@ -356,10 +362,27 @@
 
     // --- Todos en ventana ---
     var inWindow = withWindow.filter(function(item){ return now >= item.w.start; });
+    var sighted = withoutData.filter(function(b){ return b.aliveSeenAt; });
     nextGrid.innerHTML = "";
-    if (inWindow.length === 0) {
+    if (inWindow.length === 0 && sighted.length === 0) {
       nextGrid.innerHTML = '<p class="empty-hint">Ningún boss está en ventana de respawn ahora mismo.</p>';
     } else {
+      sighted.forEach(function(b){
+        var card = document.createElement("div");
+        card.className = "next-card is-up";
+        card.dataset.id = b.id;
+        card.innerHTML =
+          '<button class="icon ghost undo-alive-card" data-id="' + b.id + '" title="Quitar aviso de visto vivo">✕</button>' +
+          '<div class="card-head">' +
+            '<div class="name">' + escapeHtml(b.name) + '</div>' +
+            '<div class="status live-status up">Visto vivo</div>' +
+          '</div>' +
+          '<div class="card-row">' +
+            '<div class="countdown">hace ' + fmtDuration(now - new Date(b.aliveSeenAt)) + '</div>' +
+          '</div>' +
+          (b.notes ? '<div class="obs-note">📝 ' + escapeHtml(b.notes) + '</div>' : '');
+        nextGrid.appendChild(card);
+      });
       inWindow.forEach(function(item){
         var card = document.createElement("div");
         card.className = "next-card is-up";
@@ -403,6 +426,8 @@
 
       var lastInfo = b.lastDeathAt
         ? "Murió: " + fmtTime(new Date(b.lastDeathAt)) + (b.lastBy ? " · anotó " + escapeHtml(b.lastBy) : "")
+        : b.aliveSeenAt
+        ? "Visto vivo: " + fmtTime(new Date(b.aliveSeenAt)) + (b.aliveSeenBy ? " · anotó " + escapeHtml(b.aliveSeenBy) : "")
         : "";
 
       var loadTimeHtml = openTimeInputs.has(b.id)
@@ -410,6 +435,10 @@
           '<button class="ghost setdeath-confirm" data-id="' + b.id + '">OK</button>' +
           '<button class="ghost setdeath-cancel" data-id="' + b.id + '">Cancelar</button>'
         : '<button class="ghost setdeath-toggle" data-id="' + b.id + '">Cargar hora</button>';
+
+      var aliveBtnHtml = b.aliveSeenAt
+        ? '<button class="ghost undo-alive" data-id="' + b.id + '" title="Quita el aviso de visto vivo">Quitar aviso</button>'
+        : '<button class="ghost mark-alive" data-id="' + b.id + '">Vivo ahora</button>';
 
       row.innerHTML =
         '<button class="icon ghost del-corner" data-id="' + b.id + '" title="Eliminar boss de la lista">✕</button>' +
@@ -420,11 +449,12 @@
             '<input class="hrs" data-field="maxHours" data-id="' + b.id + '" type="number" step="0.5" min="0" value="' + b.maxHours + '"> hs' +
             (lastInfo ? " · " + lastInfo : "") +
           '</div>' +
-          '<div class="window-line" data-id="' + b.id + '">' + windowHtmlFor(w, now) + '</div>' +
+          '<div class="window-line" data-id="' + b.id + '">' + windowHtmlFor(w, now, b) + '</div>' +
           '<input class="notes" data-id="' + b.id + '" type="text" maxlength="140" placeholder="Observación (ej: enrabia en fase 2, requiere 3+)" value="' + escapeHtml(b.notes || "") + '">' +
         '</div>' +
         '<div class="actions">' +
           loadTimeHtml +
+          aliveBtnHtml +
           '<button class="primary died-now" data-id="' + b.id + '">Murió ahora</button>' +
           (b.lastDeathAt ? '<button class="ghost undo-death" data-id="' + b.id + '" title="Quita el registro de muerte, no borra el boss">Quitar de próximos</button>' : '') +
         '</div>';
@@ -458,7 +488,7 @@
       var boss = bosses.find(function(b){ return b.id === el.dataset.id; });
       if (!boss) return;
       var w = windowFor(boss);
-      el.innerHTML = windowHtmlFor(w, now);
+      el.innerHTML = windowHtmlFor(w, now, boss);
       var row = el.closest(".boss-row");
       if (row) row.classList.toggle("is-up", !!w && now >= w.start);
     });
@@ -499,6 +529,16 @@
         clearDeath(btn.dataset.id);
       });
     });
+    bossList.querySelectorAll(".mark-alive").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: new Date().toISOString(), aliveSeenBy: getNick() });
+      });
+    });
+    bossList.querySelectorAll(".undo-alive").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null });
+      });
+    });
     bossList.querySelectorAll(".del-corner").forEach(function(btn){
       btn.addEventListener("click", function(){
         if (!confirm("¿Eliminar este boss de la lista? Se borra por completo, no solo su muerte.")) return;
@@ -529,7 +569,7 @@
   }
 
   function recordDeath(id, date){
-    apiCall({ action: "update", id: id, lastDeathAt: date.toISOString(), lastBy: getNick() });
+    apiCall({ action: "update", id: id, lastDeathAt: date.toISOString(), lastBy: getNick(), aliveSeenAt: null, aliveSeenBy: null });
   }
 
   function clearDeath(id){
@@ -540,7 +580,9 @@
   // cada render(), así que se escuchan una sola vez en el contenedor padre.
   nextGrid.addEventListener("click", function(e){
     var btn = e.target.closest(".undo-death-card");
-    if (btn) clearDeath(btn.dataset.id);
+    if (btn) { clearDeath(btn.dataset.id); return; }
+    btn = e.target.closest(".undo-alive-card");
+    if (btn) apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null });
   });
 
   var addForm = document.getElementById("addForm");
