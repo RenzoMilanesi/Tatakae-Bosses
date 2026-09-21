@@ -84,13 +84,6 @@
     transition:opacity .2s, transform .2s, border-color .2s;
   }
   .next-card.is-up{ border-color:var(--up); }
-  .next-card.rank-1{ padding:20px; }
-  .next-card.rank-1 .name{ font-size:1.3rem; }
-  .next-card.rank-1 .countdown{ font-size:1.8rem; }
-  .next-card.rank-2{ opacity:.92; }
-  .next-card.rank-3{ opacity:.84; transform:scale(.98); }
-  .next-card.rank-4{ opacity:.76; transform:scale(.96); }
-  .next-card.rank-5{ opacity:.68; transform:scale(.94); }
   .next-card .undo-death-card{
     position:absolute; top:10px; right:10px;
   }
@@ -231,7 +224,7 @@
 </header>
 
 <section>
-  <h2>Próximos 5</h2>
+  <h2>Todos en ventana</h2>
   <div class="next-grid" id="nextGrid"></div>
 </section>
 
@@ -361,24 +354,22 @@
     });
     withWindow.sort(function(a,b){ return a.w.start - b.w.start; });
 
-    // --- Próximos 3 ---
+    // --- Todos en ventana ---
+    var inWindow = withWindow.filter(function(item){ return now >= item.w.start; });
     nextGrid.innerHTML = "";
-    if (withWindow.length === 0) {
-      nextGrid.innerHTML = '<p class="empty-hint">Todavía nadie anotó una muerte. Cuando anotes una, va a aparecer acá.</p>';
+    if (inWindow.length === 0) {
+      nextGrid.innerHTML = '<p class="empty-hint">Ningún boss está en ventana de respawn ahora mismo.</p>';
     } else {
-      withWindow.slice(0,5).forEach(function(item, i){
-        var isUp = now >= item.w.start;
+      inWindow.forEach(function(item){
         var card = document.createElement("div");
-        card.className = "next-card rank-" + (i+1) + (isUp ? " is-up" : "");
+        card.className = "next-card is-up";
         card.dataset.id = item.boss.id;
-        var countdown = isUp
-          ? '<span class="num">' + fmtDuration(now - item.w.start) + '</span> en ventana'
-          : '<span class="num">' + fmtDuration(item.w.start - now) + '</span>';
+        var countdown = '<span class="num">' + fmtDuration(now - item.w.start) + '</span> en ventana';
         card.innerHTML =
           '<button class="icon ghost undo-death-card" data-id="' + item.boss.id + '" title="Quitar de próximos (no borra el boss)">✕</button>' +
           '<div class="card-head">' +
             '<div class="name">' + escapeHtml(item.boss.name) + '</div>' +
-            '<div class="status live-status ' + (isUp ? "up" : "wait") + '">' + (isUp ? "Puede salir" : "En espera") + '</div>' +
+            '<div class="status live-status up">Puede salir</div>' +
           '</div>' +
           '<div class="card-row">' +
             '<div class="window franja">' +
