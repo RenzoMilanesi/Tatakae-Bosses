@@ -118,6 +118,10 @@
   .franja-time{ display:block; font-weight:600; color:var(--ink); }
   .countdown-inline{ margin-left:6px; }
 
+  .boss-columns{ display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; }
+  @media (max-width:640px){ .boss-columns{ grid-template-columns:1fr; } }
+  .boss-col h3{ font-size:.7rem; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--muted); margin:0 0 10px; }
   .boss-list{ display:flex; flex-direction:column; gap:10px; }
   .boss-row{
     background:var(--surface); border:1px solid var(--line); border-radius:12px;
@@ -225,7 +229,16 @@
 
 <section>
   <h2>Todos los bosses</h2>
-  <div class="boss-list" id="bossList"></div>
+  <div class="boss-columns" id="bossList">
+    <div class="boss-col">
+      <h3>Sin horario</h3>
+      <div class="boss-list" id="bossListUnknown"></div>
+    </div>
+    <div class="boss-col">
+      <h3>Con horario conocido</h3>
+      <div class="boss-list" id="bossListKnown"></div>
+    </div>
+  </div>
 </section>
 
 <section>
@@ -252,6 +265,8 @@
   var dbStatusEl = document.getElementById("dbStatus");
   var nextGrid = document.getElementById("nextGrid");
   var bossList = document.getElementById("bossList");
+  var bossListUnknown = document.getElementById("bossListUnknown");
+  var bossListKnown = document.getElementById("bossListKnown");
   var configBox = document.getElementById("configBox");
   var apiUrlInput = document.getElementById("apiUrlInput");
 
@@ -380,7 +395,8 @@
       return a.boss.name.localeCompare(b.boss.name);
     });
 
-    bossList.innerHTML = "";
+    bossListUnknown.innerHTML = "";
+    bossListKnown.innerHTML = "";
     all.forEach(function(item){
       var b = item.boss, w = item.w;
       var isUp = !!w && now >= w.start;
@@ -415,7 +431,7 @@
           (b.lastDeathAt ? '<button class="ghost undo-death" data-id="' + b.id + '" title="Quita el registro de muerte, no borra el boss">Quitar de próximos</button>' : '') +
         '</div>';
 
-      bossList.appendChild(row);
+      (w ? bossListKnown : bossListUnknown).appendChild(row);
     });
 
     wireRowEvents();
