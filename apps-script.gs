@@ -2,7 +2,7 @@
 // Crea automáticamente la hoja "Bosses" con los encabezados si no existe.
 
 var SHEET_NAME = "Bosses";
-var HEADERS = ["id", "name", "minHours", "maxHours", "lastDeathAt", "lastBy", "notes", "aliveSeenAt", "aliveSeenBy"];
+var HEADERS = ["id", "name", "minHours", "maxHours", "lastDeathAt", "lastBy", "notes", "aliveSeenAt", "aliveSeenBy", "fightStartAt", "fightTimes"];
 
 function getSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -12,7 +12,9 @@ function getSheet_() {
     sheet.appendRow(HEADERS);
     sheet.getRange("E:E").setNumberFormat("@"); // lastDeathAt como texto plano, nunca fecha
     sheet.getRange("H:H").setNumberFormat("@"); // aliveSeenAt como texto plano, nunca fecha
+    sheet.getRange("J:K").setNumberFormat("@"); // fightStartAt y fightTimes ("300,420") como texto
   } else if (sheet.getLastColumn() < HEADERS.length) {
+    sheet.getRange("J:K").setNumberFormat("@"); // evita que "300,420" se lea como número decimal
     // hoja creada con una versión anterior (sin la columna "notes")
     sheet.getRange(1, sheet.getLastColumn() + 1, 1, HEADERS.length - sheet.getLastColumn())
       .setValues([HEADERS.slice(sheet.getLastColumn())]);
@@ -42,7 +44,9 @@ function readAll_() {
         lastBy: r[5] ? String(r[5]) : null,
         notes: r[6] ? String(r[6]) : "",
         aliveSeenAt: isoOrNull_(r[7]),
-        aliveSeenBy: r[8] ? String(r[8]) : null
+        aliveSeenBy: r[8] ? String(r[8]) : null,
+        fightStartAt: isoOrNull_(r[9]),
+        fightTimes: r[10] ? String(r[10]) : ""
       };
     });
 }
@@ -81,6 +85,8 @@ function doPost(e) {
       "",
       body.notes || "",
       "",
+      "",
+      "",
       ""
     ]);
   } else if (action === "update") {
@@ -94,6 +100,8 @@ function doPost(e) {
       if (body.notes !== undefined) sheet.getRange(row, 7).setValue(body.notes || "");
       if (body.aliveSeenAt !== undefined) sheet.getRange(row, 8).setValue(body.aliveSeenAt || "");
       if (body.aliveSeenBy !== undefined) sheet.getRange(row, 9).setValue(body.aliveSeenBy || "");
+      if (body.fightStartAt !== undefined) sheet.getRange(row, 10).setValue(body.fightStartAt || "");
+      if (body.fightTimes !== undefined) sheet.getRange(row, 11).setValue(body.fightTimes || "");
     }
   } else if (action === "delete") {
     var rowDel = findRowIndexById_(sheet, body.id);

@@ -19,6 +19,8 @@
     --wait:#8a6d1f;
     --wait-bg:#f2e9d3;
     --danger:#a3321f;
+    --alive:#2a5d9f;
+    --alive-bg:#e2eaf5;
     --shadow: 0 1px 2px rgba(36,29,20,.06), 0 8px 24px -12px rgba(36,29,20,.25);
     color-scheme: light;
   }
@@ -37,6 +39,8 @@
       --wait:#e0bd5f;
       --wait-bg:#2c2513;
       --danger:#e2694f;
+      --alive:#7fb0f0;
+      --alive-bg:#18253a;
       --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
       color-scheme: dark;
     }
@@ -98,6 +102,8 @@
   }
   .status.up{ background:var(--up-bg); color:var(--up); }
   .status.wait{ background:var(--wait-bg); color:var(--wait); }
+  .status.alive{ background:var(--alive); color:var(--surface); }
+  .status.fight{ background:var(--surface-2); color:var(--ink); margin-left:6px; }
   .next-card .card-row{
     display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;
   }
@@ -125,6 +131,8 @@
   }
   .boss-row.is-up{ border-color:var(--up); }
   .boss-row.is-up .died-now{ background:var(--up); color:var(--accent-ink); }
+  .next-card.is-alive, .boss-row.is-alive{ background:var(--alive-bg); border-color:var(--alive); }
+  .boss-row.is-alive .died-now{ background:var(--alive); color:var(--surface); }
   .boss-row .del-corner{
     position:absolute; top:10px; right:10px;
   }
@@ -154,6 +162,8 @@
     font-size:.72rem; color:var(--wait); background:var(--wait-bg); border-radius:8px;
     padding:5px 8px; margin-top:8px; font-style:italic;
   }
+  /* ponytail: observaciones ocultas por ahora (el dato se sigue guardando); borrar esta regla para volver a mostrarlas */
+  .boss-row input.notes, .next-card .obs-note{ display:none; }
   .boss-row .window-line .status{
     display:inline-block; font-size:.65rem; font-weight:700; text-transform:uppercase;
     letter-spacing:.05em; padding:2px 8px; border-radius:999px; margin-right:6px;
@@ -314,6 +324,18 @@
     return (neg?"-":"") + h + "h " + String(m).padStart(2,"0") + "m";
   }
 
+  function fmtClock(ms){
+    var s = Math.max(0, Math.floor(ms/1000));
+    return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0");
+  }
+  // fightTimes: segundos de cada pelea separados por coma, ej "300,420"
+  function fightAvgText(b){
+    var t = String(b.fightTimes || "").split(",").map(Number).filter(function(x){ return x > 0; });
+    if (!t.length) return "";
+    var avg = t.reduce(function(a,x){ return a + x; }, 0) / t.length;
+    return "⏱ promedio " + fmtClock(avg*1000) + " (" + t.length + ")";
+  }
+
   function windowFor(boss){
     if (!boss.lastDeathAt) return null;
     var death = new Date(boss.lastDeathAt);
@@ -329,13 +351,16 @@
   }
 
   function windowHtmlFor(w, now, boss){
-    if (!w) {
-      if (boss && boss.aliveSeenAt) {
-        return '<span class="status up">Visto vivo</span>' +
-          '<span class="num countdown-inline">hace ' + fmtDuration(now - new Date(boss.aliveSeenAt)) + '</span>';
-      }
-      return '<span class="empty-hint">Sin muerte registrada</span>';
+    return windowStatusHtml(w, now, boss) + (boss.fightStartAt
+      ? '<span class="status fight">⏱ <span class="num">' + fmtClock(now - new Date(boss.fightStartAt)) + '</span></span>'
+      : '');
+  }
+  function windowStatusHtml(w, now, boss){
+    if (boss.aliveSeenAt) {
+      return '<span class="status alive">Visto vivo</span>' +
+        '<span class="num countdown-inline">hace ' + fmtDuration(now - new Date(boss.aliveSeenAt)) + '</span>';
     }
+    if (!w) return '<span class="empty-hint">Sin muerte registrada</span>';
     var isUp = now >= w.start;
     return '<span class="status ' + (isUp?"up":"wait") + '">' + (isUp?"Puede salir":"En espera") + '</span>' +
       '<span class="num countdown-inline">' + (isUp ? "hace " + fmtDuration(now-w.start) : fmtDuration(w.start-now) + " para abrir") + '</span>' +
@@ -361,24 +386,25 @@
     withWindow.sort(function(a,b){ return a.w.start - b.w.start; });
 
     // --- Todos en ventana ---
-    var inWindow = withWindow.filter(function(item){ return now >= item.w.start; });
-    var sighted = withoutData.filter(function(b){ return b.aliveSeenAt; });
+    // Los vistos vivos van primero, aunque tengan una muerte vieja registrada
+    var inWindow = withWindow.filter(function(item){ return now >= item.w.start && !item.boss.aliveSeenAt; });
+    var sighted = bosses.filter(function(b){ return b.aliveSeenAt; });
     nextGrid.innerHTML = "";
     if (inWindow.length === 0 && sighted.length === 0) {
       nextGrid.innerHTML = '<p class="empty-hint">Ningún boss está en ventana de respawn ahora mismo.</p>';
     } else {
       sighted.forEach(function(b){
         var card = document.createElement("div");
-        card.className = "next-card is-up";
+        card.className = "next-card is-alive";
         card.dataset.id = b.id;
         card.innerHTML =
           '<button class="icon ghost undo-alive-card" data-id="' + b.id + '" title="Quitar aviso de visto vivo">✕</button>' +
           '<div class="card-head">' +
             '<div class="name">' + escapeHtml(b.name) + '</div>' +
-            '<div class="status live-status up">Visto vivo</div>' +
+            '<div class="status alive">Visto vivo</div>' +
           '</div>' +
           '<div class="card-row">' +
-            '<div class="countdown">hace ' + fmtDuration(now - new Date(b.aliveSeenAt)) + '</div>' +
+            '<div class="countdown alive-countdown">hace ' + fmtDuration(now - new Date(b.aliveSeenAt)) + '</div>' +
           '</div>' +
           (b.notes ? '<div class="obs-note">📝 ' + escapeHtml(b.notes) + '</div>' : '');
         nextGrid.appendChild(card);
@@ -422,7 +448,7 @@
       var b = item.boss, w = item.w;
       var isUp = !!w && now >= w.start;
       var row = document.createElement("div");
-      row.className = "boss-row" + (isUp ? " is-up" : "");
+      row.className = "boss-row" + (isUp ? " is-up" : "") + (b.aliveSeenAt ? " is-alive" : "");
 
       var lastInfo = b.lastDeathAt
         ? "Murió: " + fmtTime(new Date(b.lastDeathAt)) + (b.lastBy ? " · anotó " + escapeHtml(b.lastBy) : "")
@@ -440,6 +466,11 @@
         ? '<button class="ghost undo-alive" data-id="' + b.id + '" title="Quita el aviso de visto vivo">Quitar aviso</button>'
         : '<button class="ghost mark-alive" data-id="' + b.id + '">Vivo ahora</button>';
 
+      var fightBtnHtml = b.fightStartAt
+        ? '<button class="ghost fight-cancel" data-id="' + b.id + '" title="Frena el cronómetro sin guardar el tiempo">Cancelar ⏱</button>'
+        : '<button class="ghost fight-start" data-id="' + b.id + '" title="Arrancalo al empezar la pelea; se frena con Murió ahora">Cronometrar</button>';
+      var avgText = fightAvgText(b);
+
       row.innerHTML =
         '<button class="icon ghost del-corner" data-id="' + b.id + '" title="Eliminar boss de la lista">✕</button>' +
         '<div class="main">' +
@@ -448,6 +479,7 @@
             'Respawn: <input class="hrs" data-field="minHours" data-id="' + b.id + '" type="number" step="0.5" min="0" value="' + b.minHours + '"> a ' +
             '<input class="hrs" data-field="maxHours" data-id="' + b.id + '" type="number" step="0.5" min="0" value="' + b.maxHours + '"> hs' +
             (lastInfo ? " · " + lastInfo : "") +
+            (avgText ? " · " + avgText : "") +
           '</div>' +
           '<div class="window-line" data-id="' + b.id + '">' + windowHtmlFor(w, now, b) + '</div>' +
           '<input class="notes" data-id="' + b.id + '" type="text" maxlength="140" placeholder="Observación (ej: enrabia en fase 2, requiere 3+)" value="' + escapeHtml(b.notes || "") + '">' +
@@ -455,6 +487,7 @@
         '<div class="actions">' +
           loadTimeHtml +
           aliveBtnHtml +
+          fightBtnHtml +
           '<button class="primary died-now" data-id="' + b.id + '">Murió ahora</button>' +
           (b.lastDeathAt ? '<button class="ghost undo-death" data-id="' + b.id + '" title="Quita el registro de muerte, no borra el boss">Quitar de próximos</button>' : '') +
         '</div>';
@@ -472,6 +505,10 @@
     document.querySelectorAll(".next-card").forEach(function(card){
       var boss = bosses.find(function(b){ return b.id === card.dataset.id; });
       if (!boss) return;
+      if (boss.aliveSeenAt) {
+        card.querySelector(".alive-countdown").textContent = "hace " + fmtDuration(now - new Date(boss.aliveSeenAt));
+        return;
+      }
       var w = windowFor(boss);
       if (!w) return;
       var isUp = now >= w.start;
@@ -534,6 +571,16 @@
         apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: new Date().toISOString(), aliveSeenBy: getNick() });
       });
     });
+    bossList.querySelectorAll(".fight-start").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        apiCall({ action: "update", id: btn.dataset.id, fightStartAt: new Date().toISOString() });
+      });
+    });
+    bossList.querySelectorAll(".fight-cancel").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        apiCall({ action: "update", id: btn.dataset.id, fightStartAt: null });
+      });
+    });
     bossList.querySelectorAll(".undo-alive").forEach(function(btn){
       btn.addEventListener("click", function(){
         apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null });
@@ -569,7 +616,13 @@
   }
 
   function recordDeath(id, date){
-    apiCall({ action: "update", id: id, lastDeathAt: date.toISOString(), lastBy: getNick(), aliveSeenAt: null, aliveSeenBy: null });
+    var payload = { action: "update", id: id, lastDeathAt: date.toISOString(), lastBy: getNick(), aliveSeenAt: null, aliveSeenBy: null, fightStartAt: null };
+    var b = bosses.find(function(x){ return x.id === id; });
+    if (b && b.fightStartAt) {
+      var secs = Math.round((date - new Date(b.fightStartAt)) / 1000);
+      if (secs > 0) payload.fightTimes = (b.fightTimes ? b.fightTimes + "," : "") + secs;
+    }
+    apiCall(payload);
   }
 
   function clearDeath(id){
