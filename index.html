@@ -223,7 +223,7 @@
 <header class="top">
   <div>
     <h1>Reloj de Respawns</h1>
-    <p>Anotá cuándo cae un boss y calculamos la ventana de reaparición (6–7 hs).</p>
+    <p>Anotá cuándo cae un boss y calculamos la ventana de reaparición (5–7 hs).</p>
   </div>
   <div class="nick-box">
     Tu nick <input id="nickInput" type="text" placeholder="ej: Renzo" maxlength="18">
@@ -242,7 +242,7 @@
   </div>
   <div class="add-form" id="addForm" hidden>
     <input type="text" id="newName" placeholder="Nombre del boss">
-    <label>Mín <input type="number" id="newMin" value="6" min="0" step="0.5"> hs</label>
+    <label>Mín <input type="number" id="newMin" value="5" min="0" step="0.5"> hs</label>
     <label>Máx <input type="number" id="newMax" value="7" min="0" step="0.5"> hs</label>
     <button class="primary" id="addBtn">+ Agregar</button>
   </div>
@@ -562,7 +562,7 @@
     var nameEl = document.getElementById("newName");
     var name = nameEl.value.trim();
     if (!name) { nameEl.focus(); return; }
-    var minH = parseFloat(document.getElementById("newMin").value) || 6;
+    var minH = parseFloat(document.getElementById("newMin").value) || 5;
     var maxH = parseFloat(document.getElementById("newMax").value) || 7;
     apiCall({ action: "add", name: name, minHours: minH, maxHours: maxH }).then(function(){
       nameEl.value = "";
