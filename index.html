@@ -107,6 +107,8 @@
   .status.wait{ background:var(--wait-bg); color:var(--wait); }
   .status.alive{ background:var(--alive); color:var(--surface); }
   .status.fight{ background:var(--surface-2); color:var(--ink); margin-left:6px; }
+  .next-card .card-head .fight-clock{ margin-left:0; }
+  .fight-clock:empty{ display:none; }
   .next-card .countdown{ font-size:.95rem; font-weight:700; }
   .empty-hint{ color:var(--muted); font-size:.85rem; font-style:italic; }
   .franja{ font-size:.8rem; font-weight:600; color:var(--muted); white-space:nowrap; }
@@ -347,9 +349,16 @@
   }
 
   function windowHtmlFor(w, now, boss){
-    return windowStatusHtml(w, now, boss) + (boss.fightStartAt
-      ? '<span class="status fight">⏱ <span class="num">' + fmtClock(now - new Date(boss.fightStartAt)) + '</span></span>'
-      : '');
+    return windowStatusHtml(w, now, boss);
+  }
+  function fightClockHtml(b, now){
+    return b.fightStartAt ? '⏱ <span class="num">' + fmtClock(now - new Date(b.fightStartAt)) + '</span>' : '';
+  }
+  function fightCardHtml(b, now){
+    return '<span class="status fight fight-clock">' + fightClockHtml(b, now) + '</span>' +
+      (b.fightStartAt
+        ? '<button class="ghost fight-cancel" data-id="' + b.id + '" title="Frena el cronómetro sin guardar el tiempo">Cancelar ⏱</button>'
+        : '<button class="ghost fight-start" data-id="' + b.id + '" title="Arrancalo al empezar la pelea; se frena con Murió ahora">Cronometrar</button>');
   }
   function windowStatusHtml(w, now, boss){
     if (boss.aliveSeenAt) {
@@ -399,6 +408,7 @@
             '<div class="name">' + escapeHtml(b.name) + '</div>' +
             '<div class="status alive">Visto vivo</div>' +
             '<div class="countdown alive-countdown">hace ' + fmtDuration(now - new Date(b.aliveSeenAt)) + '</div>' +
+            fightCardHtml(b, now) +
             '<button class="primary died-now-card" data-id="' + b.id + '">Murió ahora</button>' +
           '</div>' +
           (b.notes ? '<div class="obs-note">📝 ' + escapeHtml(b.notes) + '</div>' : '');
@@ -416,6 +426,7 @@
             franjaHtml(item.w) +
             '<div class="status live-status up">Puede salir</div>' +
             '<div class="countdown live-countdown">' + countdown + '</div>' +
+            fightCardHtml(item.boss, now) +
             '<button class="primary died-now-card" data-id="' + item.boss.id + '">Murió ahora</button>' +
           '</div>' +
           (item.boss.notes ? '<div class="obs-note">📝 ' + escapeHtml(item.boss.notes) + '</div>' : '');
@@ -425,7 +436,9 @@
 
     // --- Lista completa ---
     var all = withWindow.concat(withoutData.map(function(b){ return { boss:b, w:null }; }));
+    // Los vistos vivos van primero en "Con horario conocido"
     all.sort(function(a,b){
+      if (!a.boss.aliveSeenAt !== !b.boss.aliveSeenAt) return a.boss.aliveSeenAt ? -1 : 1;
       if (a.w && b.w) return a.w.start - b.w.start;
       if (a.w) return -1;
       if (b.w) return 1;
@@ -456,9 +469,6 @@
         ? '<button class="ghost undo-alive" data-id="' + b.id + '" title="Quita el aviso de visto vivo">Quitar aviso</button>'
         : '<button class="ghost mark-alive" data-id="' + b.id + '">Vivo ahora</button>';
 
-      var fightBtnHtml = b.fightStartAt
-        ? '<button class="ghost fight-cancel" data-id="' + b.id + '" title="Frena el cronómetro sin guardar el tiempo">Cancelar ⏱</button>'
-        : '<button class="ghost fight-start" data-id="' + b.id + '" title="Arrancalo al empezar la pelea; se frena con Murió ahora">Cronometrar</button>';
       var avgText = fightAvgText(b);
 
       row.innerHTML =
@@ -477,12 +487,11 @@
         '<div class="actions">' +
           loadTimeHtml +
           aliveBtnHtml +
-          fightBtnHtml +
           '<button class="primary died-now" data-id="' + b.id + '">Murió ahora</button>' +
           (b.lastDeathAt ? '<button class="ghost undo-death" data-id="' + b.id + '" title="Quita el registro de muerte, no borra el boss">Quitar de próximos</button>' : '') +
         '</div>';
 
-      (w ? bossListKnown : bossListUnknown).appendChild(row);
+      (w || b.aliveSeenAt ? bossListKnown : bossListUnknown).appendChild(row);
     });
 
     wireRowEvents();
@@ -495,6 +504,7 @@
     document.querySelectorAll(".next-card").forEach(function(card){
       var boss = bosses.find(function(b){ return b.id === card.dataset.id; });
       if (!boss) return;
+      card.querySelector(".fight-clock").innerHTML = fightClockHtml(boss, now);
       if (boss.aliveSeenAt) {
         card.querySelector(".alive-countdown").textContent = "hace " + fmtDuration(now - new Date(boss.aliveSeenAt));
         return;
@@ -561,19 +571,9 @@
         apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: new Date().toISOString(), aliveSeenBy: getNick() });
       });
     });
-    bossList.querySelectorAll(".fight-start").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        apiCall({ action: "update", id: btn.dataset.id, fightStartAt: new Date().toISOString() });
-      });
-    });
-    bossList.querySelectorAll(".fight-cancel").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        apiCall({ action: "update", id: btn.dataset.id, fightStartAt: null });
-      });
-    });
     bossList.querySelectorAll(".undo-alive").forEach(function(btn){
       btn.addEventListener("click", function(){
-        apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null });
+        apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null, fightStartAt: null });
       });
     });
     bossList.querySelectorAll(".del-corner").forEach(function(btn){
@@ -616,7 +616,7 @@
   }
 
   function clearDeath(id){
-    apiCall({ action: "update", id: id, lastDeathAt: null, lastBy: null });
+    apiCall({ action: "update", id: id, lastDeathAt: null, lastBy: null, fightStartAt: null });
   }
 
   // Delegado: los botones ✕ de las cards de "Próximos 3" se recrean en
@@ -627,7 +627,11 @@
     btn = e.target.closest(".undo-death-card");
     if (btn) { clearDeath(btn.dataset.id); return; }
     btn = e.target.closest(".undo-alive-card");
-    if (btn) apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null });
+    if (btn) { apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null, fightStartAt: null }); return; }
+    btn = e.target.closest(".fight-start");
+    if (btn) { apiCall({ action: "update", id: btn.dataset.id, fightStartAt: new Date().toISOString() }); return; }
+    btn = e.target.closest(".fight-cancel");
+    if (btn) apiCall({ action: "update", id: btn.dataset.id, fightStartAt: null });
   });
 
   var addForm = document.getElementById("addForm");
