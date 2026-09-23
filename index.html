@@ -226,9 +226,6 @@
     <h1>Reloj de Respawns</h1>
     <p>Anotá cuándo cae un boss y calculamos la ventana de reaparición (5–7 hs).</p>
   </div>
-  <div class="nick-box">
-    Tu nick <input id="nickInput" type="text" placeholder="ej: Renzo" maxlength="18">
-  </div>
 </header>
 
 <section>
@@ -239,12 +236,11 @@
 <section>
   <div class="section-head">
     <h2>Todos los bosses</h2>
+    <button class="ghost" id="resetAll">Limpiar</button>
     <button class="ghost" id="toggleAddForm">+ Agregar boss</button>
   </div>
   <div class="add-form" id="addForm" hidden>
     <input type="text" id="newName" placeholder="Nombre del boss">
-    <label>Mín <input type="number" id="newMin" value="5" min="0" step="0.5"> hs</label>
-    <label>Máx <input type="number" id="newMax" value="7" min="0" step="0.5"> hs</label>
     <button class="primary" id="addBtn">+ Agregar</button>
   </div>
   <div class="boss-columns" id="bossList">
@@ -265,11 +261,9 @@
 (function(){
   "use strict";
 
-  var NICK_KEY = "respawn-tracker-nick";
   var API_KEY = "respawn-tracker-api-url";
   var POLL_MS = 6000;
 
-  var nickInput = document.getElementById("nickInput");
   var dbStatusEl = document.getElementById("dbStatus");
   var nextGrid = document.getElementById("nextGrid");
   var bossList = document.getElementById("bossList");
@@ -290,18 +284,6 @@
     try { localStorage.setItem(API_KEY, v); } catch(e) {}
     location.reload();
   });
-
-  try {
-    var savedNick = localStorage.getItem(NICK_KEY);
-    if (savedNick) nickInput.value = savedNick;
-  } catch(e) {}
-  nickInput.addEventListener("input", function(){
-    try { localStorage.setItem(NICK_KEY, nickInput.value.trim()); } catch(e) {}
-  });
-  function getNick(){
-    var v = (nickInput.value || "").trim();
-    return v || "Anónimo";
-  }
 
   var bosses = []; // {id, name, minHours, maxHours, lastDeathAt, lastBy, notes}
   var openTimeInputs = new Set(); // ids con el input de "Cargar hora" desplegado
@@ -427,6 +409,7 @@
             '<div class="status live-status up">Puede salir</div>' +
             '<div class="countdown live-countdown">' + countdown + '</div>' +
             fightCardHtml(item.boss, now) +
+            '<button class="ghost mark-alive-card" data-id="' + item.boss.id + '">Vivo ahora</button>' +
             '<button class="primary died-now-card" data-id="' + item.boss.id + '">Murió ahora</button>' +
           '</div>' +
           (item.boss.notes ? '<div class="obs-note">📝 ' + escapeHtml(item.boss.notes) + '</div>' : '');
@@ -454,9 +437,9 @@
       row.className = "boss-row" + (isUp ? " is-up" : "") + (b.aliveSeenAt ? " is-alive" : "");
 
       var lastInfo = b.lastDeathAt
-        ? "Murió: " + fmtTime(new Date(b.lastDeathAt)) + (b.lastBy ? " · anotó " + escapeHtml(b.lastBy) : "")
+        ? "Murió: " + fmtTime(new Date(b.lastDeathAt))
         : b.aliveSeenAt
-        ? "Visto vivo: " + fmtTime(new Date(b.aliveSeenAt)) + (b.aliveSeenBy ? " · anotó " + escapeHtml(b.aliveSeenBy) : "")
+        ? "Visto vivo: " + fmtTime(new Date(b.aliveSeenAt))
         : "";
 
       var loadTimeHtml = openTimeInputs.has(b.id)
@@ -476,10 +459,8 @@
         '<div class="main">' +
           '<div class="name-line"><input class="bname" data-id="' + b.id + '" value="' + escapeHtml(b.name) + '"></div>' +
           '<div class="meta">' +
-            'Respawn: <input class="hrs" data-field="minHours" data-id="' + b.id + '" type="number" step="0.5" min="0" value="' + b.minHours + '"> a ' +
-            '<input class="hrs" data-field="maxHours" data-id="' + b.id + '" type="number" step="0.5" min="0" value="' + b.maxHours + '"> hs' +
-            (lastInfo ? " · " + lastInfo : "") +
-            (avgText ? " · " + avgText : "") +
+            (lastInfo || "") +
+            (avgText ? (lastInfo ? " · " : "") + avgText : "") +
           '</div>' +
           '<div class="window-line" data-id="' + b.id + '">' + windowHtmlFor(w, now, b) + '</div>' +
           '<input class="notes" data-id="' + b.id + '" type="text" maxlength="140" placeholder="Observación (ej: enrabia en fase 2, requiere 3+)" value="' + escapeHtml(b.notes || "") + '">' +
@@ -568,12 +549,12 @@
     });
     bossList.querySelectorAll(".mark-alive").forEach(function(btn){
       btn.addEventListener("click", function(){
-        apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: new Date().toISOString(), aliveSeenBy: getNick() });
+        apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: new Date().toISOString() });
       });
     });
     bossList.querySelectorAll(".undo-alive").forEach(function(btn){
       btn.addEventListener("click", function(){
-        apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null, fightStartAt: null });
+        apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, fightStartAt: null });
       });
     });
     bossList.querySelectorAll(".del-corner").forEach(function(btn){
@@ -594,19 +575,10 @@
         apiCall({ action: "update", id: input.dataset.id, notes: input.value.trim() });
       });
     });
-    bossList.querySelectorAll(".hrs").forEach(function(input){
-      input.addEventListener("change", function(){
-        var v = parseFloat(input.value);
-        if (isNaN(v) || v < 0) return;
-        var payload = { action: "update", id: input.dataset.id };
-        payload[input.dataset.field] = v;
-        apiCall(payload);
-      });
-    });
   }
 
   function recordDeath(id, date){
-    var payload = { action: "update", id: id, lastDeathAt: date.toISOString(), lastBy: getNick(), aliveSeenAt: null, aliveSeenBy: null, fightStartAt: null };
+    var payload = { action: "update", id: id, lastDeathAt: date.toISOString(), aliveSeenAt: null, fightStartAt: null };
     var b = bosses.find(function(x){ return x.id === id; });
     if (b && b.fightStartAt) {
       var secs = Math.round((date - new Date(b.fightStartAt)) / 1000);
@@ -616,7 +588,7 @@
   }
 
   function clearDeath(id){
-    apiCall({ action: "update", id: id, lastDeathAt: null, lastBy: null, fightStartAt: null });
+    apiCall({ action: "update", id: id, lastDeathAt: null, fightStartAt: null });
   }
 
   // Delegado: los botones ✕ de las cards de "Próximos 3" se recrean en
@@ -624,14 +596,24 @@
   nextGrid.addEventListener("click", function(e){
     var btn = e.target.closest(".died-now-card");
     if (btn) { recordDeath(btn.dataset.id, new Date()); return; }
+    btn = e.target.closest(".mark-alive-card");
+    if (btn) { apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: new Date().toISOString() }); return; }
     btn = e.target.closest(".undo-death-card");
     if (btn) { clearDeath(btn.dataset.id); return; }
     btn = e.target.closest(".undo-alive-card");
-    if (btn) { apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, aliveSeenBy: null, fightStartAt: null }); return; }
+    if (btn) { apiCall({ action: "update", id: btn.dataset.id, aliveSeenAt: null, fightStartAt: null }); return; }
     btn = e.target.closest(".fight-start");
     if (btn) { apiCall({ action: "update", id: btn.dataset.id, fightStartAt: new Date().toISOString() }); return; }
     btn = e.target.closest(".fight-cancel");
     if (btn) apiCall({ action: "update", id: btn.dataset.id, fightStartAt: null });
+  });
+
+  document.getElementById("resetAll").addEventListener("click", function(){
+    if (!confirm("¿Reiniciar todos los bosses? Se borran muertes, vistos vivos y cronómetros.")) return;
+    // ponytail: una llamada por boss (el backend no tiene reset masivo), en serie
+    bosses.reduce(function(p, b){
+      return p.then(function(){ return apiCall({ action: "update", id: b.id, lastDeathAt: null, aliveSeenAt: null, fightStartAt: null, fightTimes: "" }); });
+    }, Promise.resolve());
   });
 
   var addForm = document.getElementById("addForm");
@@ -644,8 +626,8 @@
     var nameEl = document.getElementById("newName");
     var name = nameEl.value.trim();
     if (!name) { nameEl.focus(); return; }
-    var minH = parseFloat(document.getElementById("newMin").value) || 5;
-    var maxH = parseFloat(document.getElementById("newMax").value) || 7;
+    var minH = 5;
+    var maxH = 7;
     apiCall({ action: "add", name: name, minHours: minH, maxHours: maxH }).then(function(){
       nameEl.value = "";
       addForm.hidden = true;
